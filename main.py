@@ -60,11 +60,13 @@ async def on_ready():
 
 # Simple command to echo the user's message
 @client.command()
+@commands.has_permissions(administrator=True)  # Admin only
 async def echo(ctx, *, message):
     await ctx.send(message)
 
 # Command to add a Twitch channel notification
 @client.command()
+@commands.has_permissions(administrator=True)  # Admin only
 async def addnotif(ctx, channel: str):
     async with aiosqlite.connect("client.db") as db:
         try:
@@ -76,6 +78,7 @@ async def addnotif(ctx, channel: str):
 
 # Command to remove a Twitch channel notification
 @client.command()
+@commands.has_permissions(administrator=True)  # Admin only
 async def removenotif(ctx, channel: str):
     async with aiosqlite.connect("client.db") as db:
         cursor = await db.execute("DELETE FROM twitch_channels WHERE channel_name = ?", (channel,))
@@ -86,6 +89,7 @@ async def removenotif(ctx, channel: str):
 
 # Command to set the Discord channel for notifications
 @client.command()
+@commands.has_permissions(administrator=True)  # Admin only
 async def setchannel(ctx, channel: discord.TextChannel):
     async with aiosqlite.connect("client.db") as db:
         await db.execute("""
@@ -98,6 +102,7 @@ async def setchannel(ctx, channel: discord.TextChannel):
 
 # Command to set the role to ping
 @client.command()
+@commands.has_permissions(administrator=True)  # Admin only
 async def setrole(ctx, role: discord.Role):
     async with aiosqlite.connect("client.db") as db:
         await db.execute("""
@@ -110,6 +115,7 @@ async def setrole(ctx, role: discord.Role):
 
 # Command to list all tracked Twitch channels
 @client.command()
+@commands.has_permissions(administrator=True)  # Admin only
 async def notiflist(ctx):
     async with aiosqlite.connect("client.db") as db:
         async with db.execute("SELECT channel_name FROM twitch_channels") as cursor:
