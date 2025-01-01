@@ -36,7 +36,8 @@ async def init_db():
             CREATE TABLE IF NOT EXISTS twitch_channels (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 channel_name TEXT UNIQUE NOT NULL,
-                live_status INTEGER DEFAULT 0  -- 0 for offline, 1 for live
+                live_status INTEGER DEFAULT 0,  -- 0 for offline, 1 for live
+                guild_id INTEGER NOT NULL      -- Add guild_id to associate with specific server
             )
         """)
 
@@ -70,22 +71,23 @@ async def echo(ctx, *, message):
 async def addnotif(ctx, channel: str):
     async with aiosqlite.connect("client.db") as db:
         try:
-            await db.execute("INSERT INTO twitch_channels (channel_name) VALUES (?)", (channel,))
+            # Insert the channel with guild_id to track it per server
+            await db.execute("INSERT INTO twitch_channels (channel_name, guild_id) VALUES (?, ?)", (channel, ctx.guild.id))
             await db.commit()
-            await ctx.send(f"Added Twitch channel: {channel} to the notification list.")
+            await ctx.send(f"Added Twitch channel: {channel} to the notification list for this server.")
         except aiosqlite.IntegrityError:
-            await ctx.send(f"The Twitch channel `{channel}` is already in the notification list.")
+            await ctx.send(f"The Twitch channel `{channel}` is already in the notification list for this server.")
 
 # Command to remove a Twitch channel notification
 @client.command()
 @commands.has_permissions(administrator=True)  # Admin only
 async def removenotif(ctx, channel: str):
     async with aiosqlite.connect("client.db") as db:
-        cursor = await db.execute("DELETE FROM twitch_channels WHERE channel_name = ?", (channel,))
+        cursor = await db.execute("DELETE FROM twitch_channels WHERE channel_name = ? AND guild_id = ?", (channel, ctx.guild.id))
         if cursor.rowcount > 0:
-            await ctx.send(f"Removed Twitch channel: {channel} from the notification list.")
+            await ctx.send(f"Removed Twitch channel: {channel} from the notification list for this server.")
         else:
-            await ctx.send(f"The Twitch channel `{channel}` was not found in the notification list.")
+            await ctx.send(f"The Twitch channel `{channel}` was not found in the notification list for this server.")
 
 # Command to set the Discord channel for notifications
 @client.command()
@@ -98,7 +100,7 @@ async def setchannel(ctx, channel: discord.TextChannel):
             ON CONFLICT(guild_id) DO UPDATE SET notification_channel = excluded.notification_channel
         """, (ctx.guild.id, channel.id))
         await db.commit()
-    await ctx.send(f"Notifications will be sent to: {channel.mention}")
+    await ctx.send(f"Notifications will be sent to: {channel.mention} for this server.")
 
 # Command to set the role to ping
 @client.command()
@@ -111,22 +113,22 @@ async def setrole(ctx, role: discord.Role):
             ON CONFLICT(guild_id) DO UPDATE SET ping_role = excluded.ping_role
         """, (ctx.guild.id, role.id))
         await db.commit()
-    await ctx.send(f"Role {role.mention} will be pinged for notifications.")
+    await ctx.send(f"Role {role.mention} will be pinged for notifications in this server.")
 
 # Command to list all tracked Twitch channels
 @client.command()
 @commands.has_permissions(administrator=True)  # Admin only
 async def notiflist(ctx):
     async with aiosqlite.connect("client.db") as db:
-        async with db.execute("SELECT channel_name FROM twitch_channels") as cursor:
+        async with db.execute("SELECT channel_name FROM twitch_channels WHERE guild_id = ?", (ctx.guild.id,)) as cursor:
             channels = await cursor.fetchall()
 
     if channels:
         # Format the list of channels
         channel_list = "\n".join(f"- {channel[0]}" for channel in channels)
-        await ctx.send(f"Here are the tracked Twitch channels:\n{channel_list}")
+        await ctx.send(f"Here are the tracked Twitch channels for this server:\n{channel_list}")
     else:
-        await ctx.send("No Twitch channels are currently being tracked.")
+        await ctx.send("No Twitch channels are currently being tracked for this server.")
 
 # Function to get OAuth token from Twitch
 def get_oauth_token(client_id, client_secret):
